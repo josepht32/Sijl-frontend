@@ -31,6 +31,7 @@ import { formatBytes, formatDate, formatDateTime, localizedName } from '../utils
 import { htmlHasContent } from '../utils/html';
 import { DocumentComposer } from '../components/DocumentComposer';
 import { useAuth } from '../auth/AuthContext';
+import { X } from 'lucide-react';
 
 function fileExtension(name: string) {
   const match = /\.([^.]+)$/.exec(name || '');
@@ -70,6 +71,35 @@ function canPreview(document: CaseDocument) {
     document.mimeType === 'text/plain' ||
     document.mimeType === 'text/markdown' ||
     document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  );
+}
+
+function MovementFileLinks({
+  documents,
+  onOpen,
+}: {
+  documents: CaseDocument[];
+  onOpen: (documentId: string) => void;
+}) {
+  if (!documents.length) {
+    return null;
+  }
+  return (
+    <div className="movement-attachments">
+      {documents.map((document) => (
+        <a
+          key={document.id}
+          href={`#case-doc-${document.id}`}
+          className="movement-attachment"
+          onClick={(event) => {
+            event.preventDefault();
+            onOpen(document.id);
+          }}
+        >
+          {document.originalFileName}
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -599,6 +629,21 @@ export function CaseDetailsPage() {
   const returnedToPrevious =
     lastMovement?.action === 'return' && lastMovement.returnTarget === 'previous_stage';
   const showReturnBanner = record.workflowState === 'awaiting_info' || returnedToPrevious;
+  const latestForward =
+    lastMovement?.action === 'forward' &&
+    (Boolean(lastMovement.instruction?.trim()) || Boolean(lastMovement.documents?.length))
+      ? lastMovement
+      : null;
+
+  const focusDocument = (documentId: string) => {
+    setSelectedId(documentId);
+    window.setTimeout(() => {
+      document.getElementById(`case-doc-${documentId}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 0);
+  };
   const originalDocs = (record.documents ?? []).filter(
     (doc) => doc.source !== 'signed' && doc.source !== 'movement' && doc.source !== 'decision' && doc.source !== 'execution',
   );
@@ -637,6 +682,7 @@ export function CaseDetailsPage() {
         {docs.map((document) => (
           <button
             key={document.id}
+            id={`case-doc-${document.id}`}
             type="button"
             className={`doc-item ${selectedId === document.id ? 'active' : ''}`}
             onClick={() => setSelectedId(document.id)}
@@ -698,7 +744,9 @@ export function CaseDetailsPage() {
       />
       {error ? <ErrorBanner message={error} /> : null}
 
-      <section className="card card-pad">
+      <div className="case-page">
+        <div className="case-layout">
+      <section className="card card-pad case-summary">
         <StageStepper current={record.currentStage} workflowState={record.workflowState} />
         {showReturnBanner ? (
           <div className="callout warn return-banner">
@@ -741,8 +789,41 @@ export function CaseDetailsPage() {
                     : ''}
                 </p>
                 <p className="return-request-body">{latestReturn.instruction}</p>
+                <MovementFileLinks documents={latestReturn.documents ?? []} onOpen={focusDocument} />
               </blockquote>
+            ) : latestReturn?.documents?.length ? (
+              <MovementFileLinks documents={latestReturn.documents} onOpen={focusDocument} />
             ) : null}
+          </div>
+        ) : null}
+        {latestForward ? (
+          <div className="callout forward-banner">
+            <blockquote className="return-request forward-note">
+              <p className="return-request-label">{t('workflow.forwardNote')}</p>
+              <p className="return-request-meta">
+                {t('workflow.forwardedBy', {
+                  name:
+                    localizedName(
+                      language,
+                      latestForward.performedBy?.nameEn,
+                      latestForward.performedBy?.nameAr,
+                    ) || t('common.none'),
+                  stage: latestForward.fromStage
+                    ? t(`stage.${latestForward.fromStage}`)
+                    : t('common.none'),
+                })}
+                {latestForward.toStage
+                  ? ` · ${t('workflow.to')} ${t(`stage.${latestForward.toStage}`)}`
+                  : ''}
+                {latestForward.createdAt
+                  ? ` · ${formatDateTime(latestForward.createdAt, language)}`
+                  : ''}
+              </p>
+              {latestForward.instruction?.trim() ? (
+                <p className="return-request-body">{latestForward.instruction}</p>
+              ) : null}
+              <MovementFileLinks documents={latestForward.documents ?? []} onOpen={focusDocument} />
+            </blockquote>
           </div>
         ) : null}
         {record.workflowState === 'awaiting_chairman' ? (
@@ -818,6 +899,109 @@ export function CaseDetailsPage() {
         ) : null}
       </section>
 
+      <aside className="case-side stack">
+        <section className="card card-pad stack">
+          <div className="page-header" style={{ marginBottom: 0 }}>
+            <h2 className="page-title" style={{ fontSize: '1.15rem' }}>
+              {t('concerned.title')}
+            </h2>
+          </div>
+          {!concerned.length ? <EmptyState message={t('concerned.empty')} /> : null}
+          {concerned.length ? (
+            <ul className="dept-list">
+              {concerned.map((item) => {
+                const name = localizedName(language, item.department?.nameEn, item.department?.nameAr);
+                return (
+                  <li key={item.id} className="dept-row">
+                    <span className="dept-name">{name}</span>
+                    {record.canManageDepartments ? (
+                      <button
+                        type="button"
+                        className="dept-remove"
+                        aria-label={`${t('concerned.remove')} ${name}`}
+                        onClick={() => {
+                          void api.delete(`/cases/${id}/departments/${item.departmentId}`).then(load);
+                        }}
+                      >
+                        <X size={14} aria-hidden />
+                        <span>{t('concerned.remove')}</span>
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+          {record.canManageDepartments && availableToAdd.length ? (
+            <div className="toolbar">
+              <SelectInput value={addDeptId} onChange={(event) => setAddDeptId(event.target.value)}>
+                <option value="">{t('concerned.select')}</option>
+                {availableToAdd.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {localizedName(language, department.nameEn, department.nameAr)}
+                  </option>
+                ))}
+              </SelectInput>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!addDeptId}
+                onClick={() => {
+                  void api
+                    .post(`/cases/${id}/departments`, { departmentId: addDeptId })
+                    .then(() => {
+                      setAddDeptId('');
+                      load();
+                    });
+                }}
+              >
+                {t('concerned.add')}
+              </Button>
+            </div>
+          ) : null}
+        </section>
+
+        {record.canManageAccess ? (
+          <section className="card card-pad stack">
+            <h2 className="page-title" style={{ fontSize: '1.15rem' }}>
+              {t('access.title')}
+            </h2>
+            {!grants.length ? <EmptyState message={t('access.empty')} /> : null}
+            <div className="access-list">
+              {grants.map((grant) => (
+                <div key={grant.id} className="access-row">
+                  <div>
+                    <strong>
+                      {localizedName(language, grant.user?.nameEn, grant.user?.nameAr) || t('access.grantedTo')}
+                    </strong>
+                    <p className="hint">{formatDateTime(grant.createdAt, language)}</p>
+                  </div>
+                  <Button type="button" variant="secondary" onClick={() => void revokeAccess(grant.id)}>
+                    {t('access.revoke')}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {grantCandidates.length ? (
+              <div className="toolbar">
+                <SelectInput value={grantUserId} onChange={(event) => setGrantUserId(event.target.value)}>
+                  <option value="">{t('access.selectUser')}</option>
+                  {grantCandidates.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {localizedName(language, person.nameEn, person.nameAr)}
+                    </option>
+                  ))}
+                </SelectInput>
+                <Button type="button" variant="secondary" disabled={!grantUserId} onClick={() => void grantAccess()}>
+                  {t('access.grant')}
+                </Button>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+      </aside>
+
+      <div className="case-rest stack">
       {latestDecision ? (
         <section className="card card-pad stack">
           <h2 className="page-title" style={{ fontSize: '1.15rem' }}>
@@ -832,99 +1016,6 @@ export function CaseDetailsPage() {
             {localizedName(language, latestDecision.performedBy?.nameEn, latestDecision.performedBy?.nameAr)}
           </p>
           <div className="history-instruction">{latestDecision.instruction}</div>
-        </section>
-      ) : null}
-
-      <section className="card card-pad stack">
-        <div className="page-header" style={{ marginBottom: 0 }}>
-          <h2 className="page-title" style={{ fontSize: '1.15rem' }}>
-            {t('concerned.title')}
-          </h2>
-        </div>
-        {!concerned.length ? <EmptyState message={t('concerned.empty')} /> : null}
-        <div className="dept-chips">
-          {concerned.map((item) => (
-            <span key={item.id} className="dept-chip">
-              {localizedName(language, item.department?.nameEn, item.department?.nameAr)}
-              {record.canManageDepartments ? (
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  onClick={() => {
-                    void api.delete(`/cases/${id}/departments/${item.departmentId}`).then(load);
-                  }}
-                >
-                  {t('concerned.remove')}
-                </button>
-              ) : null}
-            </span>
-          ))}
-        </div>
-        {record.canManageDepartments && availableToAdd.length ? (
-          <div className="toolbar">
-            <SelectInput value={addDeptId} onChange={(event) => setAddDeptId(event.target.value)}>
-              <option value="">{t('concerned.select')}</option>
-              {availableToAdd.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {localizedName(language, department.nameEn, department.nameAr)}
-                </option>
-              ))}
-            </SelectInput>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={!addDeptId}
-              onClick={() => {
-                void api
-                  .post(`/cases/${id}/departments`, { departmentId: addDeptId })
-                  .then(() => {
-                    setAddDeptId('');
-                    load();
-                  });
-              }}
-            >
-              {t('concerned.add')}
-            </Button>
-          </div>
-        ) : null}
-      </section>
-
-      {record.canManageAccess ? (
-        <section className="card card-pad stack">
-          <h2 className="page-title" style={{ fontSize: '1.15rem' }}>
-            {t('access.title')}
-          </h2>
-          {!grants.length ? <EmptyState message={t('access.empty')} /> : null}
-          <div className="access-list">
-            {grants.map((grant) => (
-              <div key={grant.id} className="access-row">
-                <div>
-                  <strong>
-                    {localizedName(language, grant.user?.nameEn, grant.user?.nameAr) || t('access.grantedTo')}
-                  </strong>
-                  <p className="hint">{formatDateTime(grant.createdAt, language)}</p>
-                </div>
-                <Button type="button" variant="secondary" onClick={() => void revokeAccess(grant.id)}>
-                  {t('access.revoke')}
-                </Button>
-              </div>
-            ))}
-          </div>
-          {grantCandidates.length ? (
-            <div className="toolbar">
-              <SelectInput value={grantUserId} onChange={(event) => setGrantUserId(event.target.value)}>
-                <option value="">{t('access.selectUser')}</option>
-                {grantCandidates.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {localizedName(language, person.nameEn, person.nameAr)}
-                  </option>
-                ))}
-              </SelectInput>
-              <Button type="button" variant="secondary" disabled={!grantUserId} onClick={() => void grantAccess()}>
-                {t('access.grant')}
-              </Button>
-            </div>
-          ) : null}
         </section>
       ) : null}
 
@@ -1285,6 +1376,9 @@ export function CaseDetailsPage() {
           </>
         )}
       </section>
+        </div>
+        </div>
+      </div>
 
       {action ? (
         <Modal

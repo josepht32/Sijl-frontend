@@ -102,9 +102,10 @@ export function SelectInput({
     return options.filter((option) => option.label.toLocaleLowerCase().includes(needle));
   }, [options, query]);
 
-  const updateMenuPosition = () => {
+  const placeMenu = () => {
     const trigger = triggerRef.current;
-    if (!trigger) {
+    const menu = menuRef.current;
+    if (!trigger || !menu) {
       return;
     }
     const rect = trigger.getBoundingClientRect();
@@ -113,20 +114,28 @@ export function SelectInput({
     const spaceAbove = rect.top - gutter;
     const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
     const maxHeight = Math.max(140, Math.min(280, openUp ? spaceAbove : spaceBelow));
-    setMenuStyle({
+    const next: CSSProperties = {
       position: 'fixed',
       top: openUp ? Math.max(gutter, rect.top - maxHeight - 4) : rect.bottom + 4,
-      left: Math.min(rect.left, window.innerWidth - rect.width - gutter),
+      left: Math.min(rect.left, Math.max(gutter, window.innerWidth - rect.width - gutter)),
       width: rect.width,
       maxHeight,
-    });
+      visibility: 'visible',
+    };
+    menu.style.position = 'fixed';
+    menu.style.top = `${next.top}px`;
+    menu.style.left = `${next.left}px`;
+    menu.style.width = `${next.width}px`;
+    menu.style.maxHeight = `${next.maxHeight}px`;
+    menu.style.visibility = 'visible';
+    setMenuStyle(next);
   };
 
   useLayoutEffect(() => {
     if (!open) {
       return;
     }
-    updateMenuPosition();
+    placeMenu();
     const selectedIndex = options.findIndex((option) => option.value === currentValue);
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
     // Position and highlight only when the menu opens.
@@ -155,7 +164,7 @@ export function SelectInput({
       if (event.key === 'Escape') {
         event.stopPropagation();
         setOpen(false);
-        triggerRef.current?.focus();
+        triggerRef.current?.focus({ preventScroll: true });
       }
     };
     window.addEventListener('resize', close);
@@ -172,7 +181,7 @@ export function SelectInput({
 
   useEffect(() => {
     if (open && searchable) {
-      searchRef.current?.focus();
+      searchRef.current?.focus({ preventScroll: true });
     }
   }, [open, searchable]);
 
@@ -180,15 +189,25 @@ export function SelectInput({
     if (!open) {
       return;
     }
-    const active = menuRef.current?.querySelector<HTMLElement>('.select-option.active');
-    active?.scrollIntoView({ block: 'nearest' });
+    const list = menuRef.current?.querySelector<HTMLElement>('.select-options');
+    const active = list?.querySelector<HTMLElement>('.select-option.active');
+    if (!list || !active) {
+      return;
+    }
+    const listRect = list.getBoundingClientRect();
+    const itemRect = active.getBoundingClientRect();
+    if (itemRect.top < listRect.top) {
+      list.scrollTop -= listRect.top - itemRect.top;
+    } else if (itemRect.bottom > listRect.bottom) {
+      list.scrollTop += itemRect.bottom - listRect.bottom;
+    }
   }, [activeIndex, open, filtered]);
 
   const choose = (next: string) => {
     emitChange(onChange, next, name, id);
     setOpen(false);
     setQuery('');
-    triggerRef.current?.focus();
+    triggerRef.current?.focus({ preventScroll: true });
   };
 
   const onTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {

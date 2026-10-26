@@ -394,6 +394,8 @@ export const en = {
     returnedToPrevious: 'The file was returned to {{stage}} for another review.',
     currentRequest: 'What must be completed',
     returnRequestedBy: 'Requested by {{name}} · {{stage}}',
+    forwardNote: 'Forwarding instruction',
+    forwardedBy: 'Forwarded by {{name}} · {{stage}}',
     noActions: 'No review actions are available for your account on this case.',
     forward: 'Forward',
     return: 'Return for completion',
