@@ -156,6 +156,8 @@ export function CaseDetailsPage() {
   const [decisionDepts, setDecisionDepts] = useState<string[]>([]);
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityComment, setActivityComment] = useState('');
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [completeNote, setCompleteNote] = useState('');
   const [addDeptId, setAddDeptId] = useState('');
   const [grants, setGrants] = useState<CaseGrantRecord[]>([]);
   const [people, setPeople] = useState<AuthUser[]>([]);
@@ -287,7 +289,7 @@ export function CaseDetailsPage() {
       setSuggestions([]);
       return;
     }
-    if (record.status === 'closed' || record.workflowState === 'archived') {
+    if (record.status === 'closed' || record.workflowState === 'archived' || record.workflowState === 'completed') {
       setSuggestions([]);
       return;
     }
@@ -566,6 +568,24 @@ export function CaseDetailsPage() {
     }
   };
 
+  const submitComplete = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!id) {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.post(`/cases/${id}/complete`, { note: completeNote });
+      setCompleteOpen(false);
+      setCompleteNote('');
+      load();
+    } catch (err) {
+      setError(apiErrorMessage(err, t('errors.completeFailed')));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const linkCase = async (relatedCaseId: string) => {
     if (!id) {
       return;
@@ -664,6 +684,7 @@ export function CaseDetailsPage() {
     return: t('workflow.returnEvent'),
     resubmit: t('workflow.resubmitEvent'),
     decision: t('workflow.decisionEvent'),
+    complete: t('workflow.completeEvent'),
   };
   const needsDepartments = decisionType !== 'archive';
   const availableToAdd = departments.filter(
@@ -673,7 +694,10 @@ export function CaseDetailsPage() {
     record.workflowState === 'awaiting_report' ? t('execution.reportTitle') : t('execution.title');
   const executionSubtitle =
     record.workflowState === 'awaiting_report' ? t('execution.reportSubtitle') : t('execution.subtitle');
-  const closed = record.status === 'closed' || record.workflowState === 'archived';
+  const closed =
+    record.status === 'closed' ||
+    record.workflowState === 'archived' ||
+    record.workflowState === 'completed';
 
   const renderDocList = (docs: CaseDocument[], label: string) =>
     docs.length ? (
@@ -725,6 +749,17 @@ export function CaseDetailsPage() {
                 {t('workflow.resubmit')}
               </Button>
             ) : null}
+            {record.canComplete ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  setCompleteOpen(true);
+                  setCompleteNote('');
+                }}
+              >
+                {t('workflow.complete')}
+              </Button>
+            ) : null}
             {decisionTypes.length ? (
               <Button
                 type="button"
@@ -748,6 +783,7 @@ export function CaseDetailsPage() {
         <div className="case-layout">
       <section className="card card-pad case-summary">
         <StageStepper current={record.currentStage} workflowState={record.workflowState} />
+        <div className="case-alerts">
         {showReturnBanner ? (
           <div className="callout warn return-banner">
             <p>
@@ -835,12 +871,16 @@ export function CaseDetailsPage() {
         {record.workflowState === 'in_execution' ? (
           <p className="callout">{t('workflow.inExecution')}</p>
         ) : null}
+        {record.workflowState === 'completed' ? (
+          <p className="callout">{t('workflow.completed')}</p>
+        ) : null}
         {record.workflowState === 'archived' ? (
           <p className="callout warn">{t('workflow.archived')}</p>
         ) : null}
         {!actions.length && !decisionTypes.length && record.workflowState === 'in_review' ? (
           <p className="hint">{t('workflow.noActions')}</p>
         ) : null}
+        </div>
 
         <div className="case-hero">
           <div>
@@ -1423,11 +1463,19 @@ export function CaseDetailsPage() {
                 </SelectInput>
               </Field>
             ) : null}
-            <Field label={t('workflow.instruction')} hint={t('workflow.instructionHint')} htmlFor="instruction">
+            <Field
+              label={
+                action === 'forward'
+                  ? `${t('workflow.instruction')} (${t('common.optional')})`
+                  : t('workflow.instruction')
+              }
+              hint={t('workflow.instructionHint')}
+              htmlFor="instruction"
+            >
               <TextArea
                 id="instruction"
-                required
-                minLength={10}
+                required={action !== 'forward'}
+                minLength={action === 'forward' ? undefined : 10}
                 value={instruction}
                 placeholder={
                   action === 'return'
@@ -1561,6 +1609,33 @@ export function CaseDetailsPage() {
                 {t('execution.confirm')}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setActivityOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {completeOpen ? (
+        <Modal wide title={t('workflow.completeTitle')} onClose={() => setCompleteOpen(false)}>
+          <form className="stack" onSubmit={submitComplete}>
+            <p className="hint">{t('workflow.completeHint')}</p>
+            <Field
+              label={`${t('workflow.completeNote')} (${t('common.optional')})`}
+              htmlFor="completeNote"
+            >
+              <TextArea
+                id="completeNote"
+                value={completeNote}
+                placeholder={t('workflow.completePlaceholder')}
+                onChange={(event) => setCompleteNote(event.target.value)}
+              />
+            </Field>
+            <div className="toolbar">
+              <Button type="submit" disabled={submitting}>
+                {t('workflow.confirmComplete')}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setCompleteOpen(false)}>
                 {t('common.cancel')}
               </Button>
             </div>

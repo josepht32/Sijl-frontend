@@ -804,9 +804,25 @@ table.data tbody tr:hover {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1rem 1.25rem;
   align-items: flex-start;
   margin-block-end: 1.2rem;
+}
+
+.case-hero .toolbar {
+  gap: 0.7rem 0.85rem;
+}
+
+.case-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+  margin-block: 0.5rem 1.85rem;
+}
+
+.case-alerts:not(:has(.callout, .hint)) {
+  display: none;
+  margin: 0;
 }
 
 .case-page {

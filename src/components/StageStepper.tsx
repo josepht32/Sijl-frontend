@@ -21,9 +21,11 @@ export function WorkflowStateBadge({ state }: { state: WorkflowState }) {
       ? 'warn'
       : state === 'archived'
         ? 'neutral'
-        : state === 'in_execution' || state === 'awaiting_chairman'
-          ? 'info'
-          : 'ok';
+        : state === 'completed'
+          ? 'ok'
+          : state === 'in_execution' || state === 'awaiting_chairman'
+            ? 'info'
+            : 'ok';
   return <Badge tone={tone}>{t(`workflowState.${state}`)}</Badge>;
 }
 
@@ -46,6 +48,7 @@ export function StageStepper({
   const decided =
     workflowState === 'in_execution' ||
     workflowState === 'awaiting_report' ||
+    workflowState === 'completed' ||
     workflowState === 'archived';
 
   return (

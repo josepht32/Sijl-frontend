@@ -269,6 +269,7 @@ export function CasesListPage() {
             <option value="awaiting_chairman">{t('workflowState.awaiting_chairman')}</option>
             <option value="awaiting_report">{t('workflowState.awaiting_report')}</option>
             <option value="in_execution">{t('workflowState.in_execution')}</option>
+            <option value="completed">{t('workflowState.completed')}</option>
             <option value="archived">{t('workflowState.archived')}</option>
           </SelectInput>
         </div>

@@ -14,9 +14,10 @@ export type WorkflowState =
   | 'awaiting_chairman'
   | 'awaiting_report'
   | 'in_execution'
+  | 'completed'
   | 'archived';
 export type AvailableWorkflowAction = 'forward' | 'return' | 'resubmit';
-export type WorkflowActionType = 'created' | 'forward' | 'return' | 'resubmit' | 'decision';
+export type WorkflowActionType = 'created' | 'forward' | 'return' | 'resubmit' | 'decision' | 'complete';
 export type DecisionType = 'approval' | 'archive' | 'request_detailed_report';
 export type DocumentSource = 'original' | 'movement' | 'decision' | 'execution' | 'signed';
 export type SignedStatus = 'unsigned' | 'signed' | 'signed_copy';
@@ -165,6 +166,7 @@ export interface CaseRecord {
   availableDecisionTypes?: DecisionType[];
   canManageDepartments?: boolean;
   canAddActivity?: boolean;
+  canComplete?: boolean;
   canManageAccess?: boolean;
   canSignDocuments?: boolean;
   nextStage?: WorkflowStage | null;
