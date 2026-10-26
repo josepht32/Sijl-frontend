@@ -39,4 +39,10 @@ jobs:
           chmod 755 /home/sijl /home/sijl/sijl /home/sijl/sijl/Sijl-frontend
           chmod -R a+rX /home/sijl/sijl/Sijl-frontend/dist
           sudo systemctl reload nginx
+          cd /home/sijl/sijl/Sijl-backend
+          git fetch origin main
+          git reset --hard origin/main
+          npm ci --no-audit --no-fund
+          npm run build
+          sudo systemctl restart sijl-backend
           EOF
